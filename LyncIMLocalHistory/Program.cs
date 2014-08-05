@@ -15,6 +15,26 @@ namespace LyncIMLocalHistory
 
     class Program
     {
+        static string welcomeText =
+@"
+LyncIMLocalHistory ver. 1.0
+===========================
+Simple IM conversation tracker for people who want to keep the conversation 
+history and can not use lync for it directly (i.e. it may be disabled by corp).
+Conversations are stored in [your documents]\LyncIMHistory folder.
+
+LICENCE
+=======
+This program is a Beerware and is distributed under GBL (General Beer Licence).
+Which meens when you buy me a beer you can use modify and do whatever you 
+please with the program. I don't take any responsibilities whatsoever. 
+
+contact:
+Jonas Bujok
+gbl@bujok.cz
+";
+
+
         static Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer> ActiveConversations = 
             new Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer>();
 
@@ -26,33 +46,31 @@ namespace LyncIMLocalHistory
 
         static void Main(string[] args)
         {
-            var client = LyncClient.GetClient();
+            Console.WriteLine(welcomeText);
+            Console.WriteLine("Connecting to Lync Client...");
+            LyncClient client = LyncClient.GetClient();
             myself = client.Self;
+            if (!Directory.Exists(mydocpath + @"\LyncIMHistory"))
+                Directory.CreateDirectory(mydocpath + @"\LyncIMHistory");
             client.ConversationManager.ConversationAdded += ConversationManager_ConversationAdded;
             client.ConversationManager.ConversationRemoved += ConversationManager_ConversationRemoved;
+            Console.WriteLine("Ready!");
+            Console.WriteLine();
             Console.ReadLine();
         }
 
         static void ConversationManager_ConversationAdded(object sender, Microsoft.Lync.Model.Conversation.ConversationManagerEventArgs e)
         {
-            Console.WriteLine("Conversation added.");
-            ActiveConversations.Add(e.Conversation, new ConversationContainer()
+            ConversationContainer newcontainer = new ConversationContainer()
             {
                 Conversation = e.Conversation,
                 ConversationCreated = DateTime.Now,
                 m_convId = nextConvId++
-            });
+            };
+            ActiveConversations.Add(e.Conversation, newcontainer);
             e.Conversation.ParticipantAdded += Conversation_ParticipantAdded;
             e.Conversation.ParticipantRemoved += Conversation_ParticipantRemoved;
-
-            //foreach (Participant participant in conversation.Participants)
-            //{
-            //    (participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived += InstantMessageModality_InstantMessageReceived;
-            //    if(participant.Contact == myself.Contact)
-            //        Console.WriteLine("Found you.");
-            //    else
-            //        Console.WriteLine("Participant " + participant.Contact.GetContactInformation(ContactInformationType.DisplayName) + "found.");
-            //}
+            Console.WriteLine("Conversation {0} added.", newcontainer.m_convId);
         }
 
         static void Conversation_ParticipantRemoved(object sender, Microsoft.Lync.Model.Conversation.ParticipantCollectionChangedEventArgs args)
@@ -77,12 +95,29 @@ namespace LyncIMLocalHistory
         {
             InstantMessageModality imm = (sender as InstantMessageModality);
             ConversationContainer container = ActiveConversations[imm.Conversation];
-            String convlog = "[" + DateTime.Now + "](" + container.m_convId + ")<" + imm.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName) + "> " + args.Text;
-            using (StreamWriter outfile = new StreamWriter(mydocpath + @"\LyncIMHistory.txt"))
+            DateTime now = DateTime.Now;
+            String convlog = "[" + now + "] (Conv. #" + container.m_convId + ") <" + imm.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName) + ">";
+            convlog += Environment.NewLine + args.Text;
+            using (StreamWriter outfile = new StreamWriter(mydocpath + @"\LyncIMHistory\AllLyncIMHistory.txt", true))
             {
-                outfile.Write(convlog);
+                outfile.WriteLine(convlog);
                 outfile.Close();
             }
+            foreach (Participant participant in container.Conversation.Participants)
+            {
+                if (participant.Contact == myself.Contact)
+                    continue;
+                String directory = mydocpath + @"\LyncIMHistory\" + participant.Contact.GetContactInformation(ContactInformationType.DisplayName);
+                if (!Directory.Exists(directory))
+                    Directory.CreateDirectory(directory); 
+                String filename = directory + @"\" + now.ToShortDateString() + ".txt";
+                using (StreamWriter partfile = new StreamWriter(filename, true))
+                {
+                    partfile.WriteLine(convlog);
+                    partfile.Close();
+                }
+            }
+
             Console.WriteLine(convlog);
         }
 

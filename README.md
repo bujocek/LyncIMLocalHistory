@@ -6,4 +6,8 @@ Simple IM conversation tracker for people who want to keep the conversation hist
 LICENCE
 =======
 
-This program is Beerware and is distributed under GBL (General Beer Licence). Which meens when you buy me a beer you can use modify and do whatever you please with the program. I don't take any responsibilities whatsoever. 
+This program is a Beerware and is distributed under GBL (General Beer Licence). Which meens when you buy me a beer you can use modify and do whatever you please with the program. I don't take any responsibilities whatsoever. 
+
+contact:
+Jonas Bujok
+gbl@bujok.cz
