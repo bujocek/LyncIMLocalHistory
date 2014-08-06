@@ -110,7 +110,7 @@ gbl@bujok.cz
                 String directory = mydocpath + @"\LyncIMHistory\" + participant.Contact.GetContactInformation(ContactInformationType.DisplayName);
                 if (!Directory.Exists(directory))
                     Directory.CreateDirectory(directory);
-                string dateString = now.Year + "-" + now.Month + "-" + now.Day;
+                string dateString = now.ToString("yyyy-MM-dd");
                 String filename = directory + @"\" + dateString + ".txt";
                 //Console.WriteLine(filename);
                 using (StreamWriter partfile = new StreamWriter(filename, true))
