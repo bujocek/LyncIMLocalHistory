@@ -47,8 +47,38 @@ gbl@bujok.cz
         static void Main(string[] args)
         {
             Console.WriteLine(welcomeText);
-            Console.WriteLine("Connecting to Lync Client...");
-            LyncClient client = LyncClient.GetClient();
+            LyncClient client = null;
+            bool tryAgain = false;
+            int attempts = 0;
+            int waittime = 5;
+            do
+            {
+                tryAgain = false;
+                attempts++;
+                try
+                {
+                    if(attempts > 1)
+                        Console.WriteLine("Connecting to Lync Client. Attempt {0}...", attempts);
+                    else
+                        Console.WriteLine("Connecting to Lync Client...");
+                    client = LyncClient.GetClient();
+                }
+                catch (LyncClientException _exception)
+                {
+                    tryAgain = true;
+                    if(attempts <= 20)
+                    {
+                        Console.WriteLine("Client not found. Trying again in {0} seconds.", waittime);
+                        System.Threading.Thread.Sleep(waittime * 1000);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Client not found. Too many attempts. Giving up.");
+                        Console.ReadLine();
+                        return;
+                    }
+                }
+            } while (tryAgain);
             myself = client.Self;
             if (!Directory.Exists(mydocpath + @"\LyncIMHistory"))
                 Directory.CreateDirectory(mydocpath + @"\LyncIMHistory");
