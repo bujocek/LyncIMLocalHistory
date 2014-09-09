@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace LyncIMLocalHistory
 {
-    class Program:System.Windows.Forms.Form
+    class Program : System.Windows.Forms.Form
     {
         public string welcomeText =
 @"LyncIMLocalHistory ver. 1.0
@@ -35,7 +35,7 @@ gbl@bujok.cz";
             connectAndPrepare();
         }
 
-        static Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer> ActiveConversations = 
+        static Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer> ActiveConversations =
             new Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer>();
 
         /**
@@ -50,11 +50,14 @@ gbl@bujok.cz";
         static string mydocpath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
 
         static Program ProgramRef;
+        private NotifyIcon notifyIcon;
+        private const int BALOON_POPUP_TIMEOUT = 3000;
 
         static void Main(string[] args)
         {
             Application.EnableVisualStyles();
             ProgramRef = new Program();
+
             Application.Run(ProgramRef);
         }
 
@@ -85,7 +88,7 @@ gbl@bujok.cz";
                 attempts++;
                 try
                 {
-                    if(attempts > 1)
+                    if (attempts > 1)
                         consoleWriteLine(String.Format("Connecting to Lync Client. Attempt {0}...", attempts));
                     else
                         consoleWriteLine("Connecting to Lync Client...");
@@ -94,7 +97,7 @@ gbl@bujok.cz";
                 catch (LyncClientException _exception)
                 {
                     tryAgain = true;
-                    if(attempts <= 20)
+                    if (attempts <= 20)
                     {
                         consoleWriteLine(String.Format("Client not found. Trying again in {0} seconds.", waittime));
                         System.Threading.Thread.Sleep(waittime * 1000);
@@ -128,7 +131,13 @@ gbl@bujok.cz";
             ActiveConversations.Add(e.Conversation, newcontainer);
             e.Conversation.ParticipantAdded += Conversation_ParticipantAdded;
             e.Conversation.ParticipantRemoved += Conversation_ParticipantRemoved;
-            consoleWriteLine(String.Format("Conversation {0} added.", newcontainer.m_convId));
+            String s = String.Format("Conversation {0} started.", newcontainer.m_convId);
+            consoleWriteLine(s);
+            if (WindowState == FormWindowState.Minimized)
+            {
+                this.notifyIcon.BalloonTipText = s;
+                this.notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+            }
         }
 
         void Conversation_ParticipantRemoved(object sender, Microsoft.Lync.Model.Conversation.ParticipantCollectionChangedEventArgs args)
@@ -192,6 +201,14 @@ gbl@bujok.cz";
                 TimeSpan conversationLength = DateTime.Now.Subtract(container.ConversationCreated);
                 consoleWriteLine(String.Format("Conversation {0} lasted {1} seconds", container.m_convId, conversationLength));
                 ActiveConversations.Remove(e.Conversation);
+
+                String s = String.Format("Conversation {0} ended.", container.m_convId);
+                consoleWriteLine(s);
+                if (WindowState == FormWindowState.Minimized)
+                {
+                    this.notifyIcon.BalloonTipText = s;
+                    this.notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+                }
             }
         }
 
@@ -204,7 +221,7 @@ gbl@bujok.cz";
             // 
             // textBox1
             // 
-            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox1.Location = new System.Drawing.Point(12, 12);
             this.textBox1.MinimumSize = new System.Drawing.Size(100, 50);
@@ -218,8 +235,8 @@ gbl@bujok.cz";
             // 
             // consoleBox
             // 
-            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.consoleBox.Location = new System.Drawing.Point(12, 220);
             this.consoleBox.Multiline = true;
@@ -237,9 +254,40 @@ gbl@bujok.cz";
             this.Controls.Add(this.textBox1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Program";
+
+            this.notifyIcon = new NotifyIcon();
+            this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info; //Shows the info icon so the user doesn't thing there is an error.
+            this.notifyIcon.BalloonTipText = "Lync history minimized";
+            this.notifyIcon.BalloonTipTitle = "Lync history";
+            this.notifyIcon.Icon = this.Icon; //The tray icon to use
+           
+            this.notifyIcon.Text = "Lync history recorder";
+
+            this.Resize += Form_Resize;
+
+            this.notifyIcon.DoubleClick += notifyIcon_MouseDoubleClick;
+
             this.ResumeLayout(false);
             this.PerformLayout();
 
+        }
+
+        private void Form_Resize(object sender, EventArgs e)
+        {
+            if (WindowState == FormWindowState.Minimized)
+            {
+                notifyIcon.Visible = true;
+                notifyIcon.BalloonTipText = "Lync history minimized";
+                notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+                this.ShowInTaskbar = false;
+            }
+        }
+
+        private void notifyIcon_MouseDoubleClick(object sender, EventArgs e)
+        {
+            this.WindowState = FormWindowState.Normal;
+            this.ShowInTaskbar = true;
+            notifyIcon.Visible = false;
         }
     }
 
@@ -249,4 +297,6 @@ gbl@bujok.cz";
         public DateTime ConversationCreated { get; set; }
         public int m_convId;
     }
+
+    delegate void SetTextCallback(string text);
 }
