@@ -11,7 +11,7 @@ namespace LyncIMLocalHistory
     class Program : System.Windows.Forms.Form
     {
         public string welcomeText =
-@"LyncIMLocalHistory ver. 1.0
+@"LyncIMLocalHistory ver. 1.1
 ===========================
 Simple IM conversation tracker for people who want to keep the conversation 
 history and can not use lync for it directly (i.e. it may be disabled by corp).
@@ -31,6 +31,7 @@ gbl@bujok.cz";
         {
 
             InitializeComponent();
+            this.Resize += Form_Resize;
             this.textBox1.Text = welcomeText;
             connectAndPrepare();
         }
@@ -51,6 +52,7 @@ gbl@bujok.cz";
 
         static Program ProgramRef;
         private NotifyIcon notifyIcon;
+        private System.ComponentModel.IContainer components;
         private const int BALOON_POPUP_TIMEOUT = 3000;
 
         static void Main(string[] args)
@@ -71,7 +73,7 @@ gbl@bujok.cz";
             }
             else
             {
-                this.consoleBox.Text += text + System.Environment.NewLine;
+                this.consoleBox.AppendText(text + System.Environment.NewLine);
             }
         }
 
@@ -131,7 +133,7 @@ gbl@bujok.cz";
             ActiveConversations.Add(e.Conversation, newcontainer);
             e.Conversation.ParticipantAdded += Conversation_ParticipantAdded;
             e.Conversation.ParticipantRemoved += Conversation_ParticipantRemoved;
-            String s = String.Format("Conversation {0} started.", newcontainer.m_convId);
+            String s = String.Format("Conversation #{0} started.", newcontainer.m_convId);
             consoleWriteLine(s);
             if (WindowState == FormWindowState.Minimized)
             {
@@ -144,18 +146,18 @@ gbl@bujok.cz";
         {
             (args.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived -= InstantMessageModality_InstantMessageReceived;
             if (args.Participant.Contact == myself.Contact)
-                consoleWriteLine("You removed.");
+                consoleWriteLine("You were removed.");
             else
-                consoleWriteLine("Participant removed: " + args.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName));
+                consoleWriteLine("Participant was removed: " + args.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName));
         }
 
         void Conversation_ParticipantAdded(object sender, Microsoft.Lync.Model.Conversation.ParticipantCollectionChangedEventArgs args)
         {
             (args.Participant.Modalities[ModalityTypes.InstantMessage] as InstantMessageModality).InstantMessageReceived += InstantMessageModality_InstantMessageReceived;
             if (args.Participant.Contact == myself.Contact)
-                consoleWriteLine("You added.");
+                consoleWriteLine("You were added.");
             else
-                consoleWriteLine("Participant added: " + args.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName));
+                consoleWriteLine("Participant was added: " + args.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName));
         }
 
         void InstantMessageModality_InstantMessageReceived(object sender, Microsoft.Lync.Model.Conversation.MessageSentEventArgs args)
@@ -199,11 +201,10 @@ gbl@bujok.cz";
             {
                 ConversationContainer container = ActiveConversations[e.Conversation];
                 TimeSpan conversationLength = DateTime.Now.Subtract(container.ConversationCreated);
-                consoleWriteLine(String.Format("Conversation {0} lasted {1} seconds", container.m_convId, conversationLength));
+                consoleWriteLine(String.Format("Conversation #{0} ended. It lasted {1} seconds", container.m_convId, conversationLength.ToString(@"hh\:mm\:ss")));
                 ActiveConversations.Remove(e.Conversation);
 
-                String s = String.Format("Conversation {0} ended.", container.m_convId);
-                consoleWriteLine(s);
+                String s = String.Format("Conversation #{0} ended.", container.m_convId);
                 if (WindowState == FormWindowState.Minimized)
                 {
                     this.notifyIcon.BalloonTipText = s;
@@ -214,14 +215,16 @@ gbl@bujok.cz";
 
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Program));
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.consoleBox = new System.Windows.Forms.TextBox();
+            this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
             this.SuspendLayout();
             // 
             // textBox1
             // 
-            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox1.Location = new System.Drawing.Point(12, 12);
             this.textBox1.MinimumSize = new System.Drawing.Size(100, 50);
@@ -235,8 +238,8 @@ gbl@bujok.cz";
             // 
             // consoleBox
             // 
-            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
+            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.consoleBox.Location = new System.Drawing.Point(12, 220);
             this.consoleBox.Multiline = true;
@@ -254,17 +257,15 @@ gbl@bujok.cz";
             this.Controls.Add(this.textBox1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Program";
-
-            this.notifyIcon = new NotifyIcon();
+            this.Text = "Lync IM Local History";
+            // 
+            // notifyIcon
+            // 
             this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info; //Shows the info icon so the user doesn't thing there is an error.
             this.notifyIcon.BalloonTipText = "Lync history minimized";
             this.notifyIcon.BalloonTipTitle = "Lync history";
             this.notifyIcon.Icon = this.Icon; //The tray icon to use
-           
             this.notifyIcon.Text = "Lync history recorder";
-
-            this.Resize += Form_Resize;
-
             this.notifyIcon.DoubleClick += notifyIcon_MouseDoubleClick;
 
             this.ResumeLayout(false);
