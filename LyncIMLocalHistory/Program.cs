@@ -33,7 +33,6 @@ gbl@bujok.cz";
             InitializeComponent();
             this.Resize += Form_Resize;
             this.textBox1.Text = welcomeText;
-            connectAndPrepare();
         }
 
         static Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer> ActiveConversations =
@@ -59,8 +58,14 @@ gbl@bujok.cz";
         {
             Application.EnableVisualStyles();
             ProgramRef = new Program();
-
+            ProgramRef.Shown += ApplicationShown;
             Application.Run(ProgramRef);
+            ProgramRef.Shown -= ApplicationShown;
+        }
+
+        static void ApplicationShown(object sender, EventArgs args)
+        {
+            (sender as Program).connectAndPrepare();
         }
 
         void consoleWriteLine(String text = "")
