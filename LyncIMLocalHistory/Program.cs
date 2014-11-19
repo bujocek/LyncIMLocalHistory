@@ -12,7 +12,7 @@ namespace LyncIMLocalHistory
     {
         public string welcomeText =
 @"LyncIMLocalHistory ver. 1.1
-===========================
+=============================
 Simple IM conversation tracker for people who want to keep the conversation 
 history and can not use lync for it directly (i.e. it may be disabled by corp).
 Conversations are stored in [your documents]\LyncIMHistory folder.
@@ -29,10 +29,9 @@ gbl@bujok.cz";
 
         Program()
         {
-
             InitializeComponent();
             this.Resize += Form_Resize;
-            this.textBox1.Text = welcomeText;
+            this.textBox1.Text = welcomeText.Replace("\n", Environment.NewLine);
         }
 
         static Dictionary<Microsoft.Lync.Model.Conversation.Conversation, ConversationContainer> ActiveConversations =
@@ -48,6 +47,8 @@ gbl@bujok.cz";
         private TextBox consoleBox;
 
         static string mydocpath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        static string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        static string programFolder = @"\LyncIMHistory";
 
         static Program ProgramRef;
         private NotifyIcon notifyIcon;
@@ -85,6 +86,20 @@ gbl@bujok.cz";
         void connectAndPrepare()
         {
             Console.WriteLine(welcomeText);
+
+            //read previous conversation ID
+            try
+            {
+                StreamReader idFile = new StreamReader(appDataPath + programFolder + @"\nextConvId.txt");
+                nextConvId = int.Parse(idFile.ReadLine());
+                consoleWriteLine("Last conversation number found: " + nextConvId);
+            }
+            catch(Exception _ex)
+            {
+                nextConvId = 1;
+                consoleWriteLine("No previous conversation number found. Using default.");
+            }
+
             LyncClient client = null;
             bool tryAgain = false;
             int attempts = 0;
@@ -118,8 +133,10 @@ gbl@bujok.cz";
                 }
             } while (tryAgain);
             myself = client.Self;
-            if (!Directory.Exists(mydocpath + @"\LyncIMHistory"))
-                Directory.CreateDirectory(mydocpath + @"\LyncIMHistory");
+            if (!Directory.Exists(mydocpath + programFolder))
+                Directory.CreateDirectory(mydocpath + programFolder);
+            if (!Directory.Exists(appDataPath + programFolder))
+                Directory.CreateDirectory(appDataPath + programFolder);
             client.ConversationManager.ConversationAdded += ConversationManager_ConversationAdded;
             client.ConversationManager.ConversationRemoved += ConversationManager_ConversationRemoved;
             consoleWriteLine("Ready!");
@@ -136,6 +153,18 @@ gbl@bujok.cz";
                 m_convId = nextConvId++
             };
             ActiveConversations.Add(e.Conversation, newcontainer);
+            try
+            {
+                using (StreamWriter outfile = new StreamWriter(appDataPath + programFolder + @"\nextConvId.txt", false))
+                {
+                    outfile.WriteLine(nextConvId);
+                    outfile.Close();
+                }
+            }
+            catch(Exception _ex)
+            {
+                //ignore
+            }
             e.Conversation.ParticipantAdded += Conversation_ParticipantAdded;
             e.Conversation.ParticipantRemoved += Conversation_ParticipantRemoved;
             String s = String.Format("Conversation #{0} started.", newcontainer.m_convId);
@@ -172,7 +201,7 @@ gbl@bujok.cz";
             DateTime now = DateTime.Now;
             String convlog = "[" + now + "] (Conv. #" + container.m_convId + ") <" + imm.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName) + ">";
             convlog += Environment.NewLine + args.Text;
-            using (StreamWriter outfile = new StreamWriter(mydocpath + @"\LyncIMHistory\AllLyncIMHistory.txt", true))
+            using (StreamWriter outfile = new StreamWriter(mydocpath + programFolder +@"\AllLyncIMHistory.txt", true))
             {
                 outfile.WriteLine(convlog);
                 outfile.Close();
@@ -181,7 +210,7 @@ gbl@bujok.cz";
             {
                 if (participant.Contact == myself.Contact)
                     continue;
-                String directory = mydocpath + @"\LyncIMHistory\" + participant.Contact.GetContactInformation(ContactInformationType.DisplayName);
+                String directory = mydocpath + programFolder + @"\" + participant.Contact.GetContactInformation(ContactInformationType.DisplayName);
                 if (!Directory.Exists(directory))
                     Directory.CreateDirectory(directory);
                 string dateString = now.ToString("yyyy-MM-dd");
