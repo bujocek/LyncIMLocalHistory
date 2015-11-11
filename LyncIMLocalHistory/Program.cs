@@ -59,7 +59,7 @@ gbl@bujok.cz";
         static LyncClient lyncClient;
 
         private const int BALLOON_POPUP_TIMEOUT_MS = 3000;
-        private const int KEEP_ALIVE_INTERVAL_MS = 30000;
+        private const int KEEP_ALIVE_INTERVAL_MS = 5000;
         private const int CONNECT_RETRY_WAIT_TIME_MS = 5000;
         private const int CONNECT_RETRY_MAX = -1; // -1 to retry indefinitely
 
