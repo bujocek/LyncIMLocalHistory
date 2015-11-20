@@ -1,10 +1,11 @@
-﻿using Microsoft.Lync.Model;
+using Microsoft.Lync.Model;
 using Microsoft.Lync.Model.Conversation;
 using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
+using System.Threading.Tasks;
 
 namespace LyncIMLocalHistory
 {
@@ -51,9 +52,17 @@ gbl@bujok.cz";
         static string programFolder = @"\LyncIMHistory";
 
         static Program ProgramRef;
+        static Timer keepAliveTimer = new Timer();
         private NotifyIcon notifyIcon;
         private System.ComponentModel.IContainer components;
-        private const int BALOON_POPUP_TIMEOUT = 3000;
+
+        static LyncClient lyncClient;
+
+        private const int BALLOON_POPUP_TIMEOUT_MS = 3000;
+        private const int KEEP_ALIVE_INTERVAL_MS = 5000;
+        private const int CONNECT_RETRY_WAIT_TIME_MS = 5000;
+        private const int CONNECT_RETRY_MAX = -1; // -1 to retry indefinitely
+
 
         static void Main(string[] args)
         {
@@ -66,7 +75,20 @@ gbl@bujok.cz";
 
         static void ApplicationShown(object sender, EventArgs args)
         {
-            (sender as Program).connectAndPrepare();
+            (sender as Program).prepare();
+            (sender as Program).connect();
+        }
+
+        void KeepAliveTimerProcessor(Object myObject, EventArgs myEventArgs)
+        {
+            if (lyncClient != null && lyncClient.State != ClientState.Invalid)
+            {
+                return;
+            }
+
+            keepAliveTimer.Stop();
+            consoleWriteLine("Lost connection to Lync client; retrying connection");
+            connect();
         }
 
         void consoleWriteLine(String text = "")
@@ -83,7 +105,7 @@ gbl@bujok.cz";
             }
         }
 
-        void connectAndPrepare()
+        void prepare()
         {
             Console.WriteLine(welcomeText);
 
@@ -94,16 +116,21 @@ gbl@bujok.cz";
                 nextConvId = int.Parse(idFile.ReadLine());
                 consoleWriteLine("Last conversation number found: " + nextConvId);
             }
-            catch(Exception _ex)
+            catch (Exception _ex)
             {
                 nextConvId = 1;
                 consoleWriteLine("No previous conversation number found. Using default.");
             }
 
-            LyncClient client = null;
+            keepAliveTimer.Tick += new EventHandler(KeepAliveTimerProcessor);
+            keepAliveTimer.Interval = KEEP_ALIVE_INTERVAL_MS;
+        }
+
+        async void connect()
+        {
+            lyncClient = null;
             bool tryAgain = false;
             int attempts = 0;
-            int waittime = 5;
             do
             {
                 tryAgain = false;
@@ -114,15 +141,15 @@ gbl@bujok.cz";
                         consoleWriteLine(String.Format("Connecting to Lync Client. Attempt {0}...", attempts));
                     else
                         consoleWriteLine("Connecting to Lync Client...");
-                    client = LyncClient.GetClient();
+                    lyncClient = LyncClient.GetClient();
                 }
                 catch (LyncClientException _exception)
                 {
                     tryAgain = true;
-                    if (attempts <= 20)
+                    if (CONNECT_RETRY_MAX < 0 || attempts <= CONNECT_RETRY_MAX)
                     {
-                        consoleWriteLine(String.Format("Client not found. Trying again in {0} seconds.", waittime));
-                        System.Threading.Thread.Sleep(waittime * 1000);
+                        consoleWriteLine(String.Format("Client not found. Trying again in {0} seconds.", CONNECT_RETRY_WAIT_TIME_MS / 1000));
+                        await Task.Delay(CONNECT_RETRY_WAIT_TIME_MS);
                     }
                     else
                     {
@@ -132,16 +159,18 @@ gbl@bujok.cz";
                     }
                 }
             } while (tryAgain);
-            myself = client.Self;
+            myself = lyncClient.Self;
             if (!Directory.Exists(mydocpath + programFolder))
                 Directory.CreateDirectory(mydocpath + programFolder);
             if (!Directory.Exists(appDataPath + programFolder))
                 Directory.CreateDirectory(appDataPath + programFolder);
-            client.ConversationManager.ConversationAdded += ConversationManager_ConversationAdded;
-            client.ConversationManager.ConversationRemoved += ConversationManager_ConversationRemoved;
+            lyncClient.ConversationManager.ConversationAdded += ConversationManager_ConversationAdded;
+            lyncClient.ConversationManager.ConversationRemoved += ConversationManager_ConversationRemoved;
             consoleWriteLine("Ready!");
             consoleWriteLine();
             Console.ReadLine();
+
+            keepAliveTimer.Enabled = true;
         }
 
         void ConversationManager_ConversationAdded(object sender, Microsoft.Lync.Model.Conversation.ConversationManagerEventArgs e)
@@ -172,7 +201,7 @@ gbl@bujok.cz";
             if (WindowState == FormWindowState.Minimized)
             {
                 this.notifyIcon.BalloonTipText = s;
-                this.notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+                this.notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
             }
         }
 
@@ -242,7 +271,7 @@ gbl@bujok.cz";
                 if (WindowState == FormWindowState.Minimized)
                 {
                     this.notifyIcon.BalloonTipText = s;
-                    this.notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+                    this.notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
                 }
             }
         }
@@ -313,7 +342,7 @@ gbl@bujok.cz";
             {
                 notifyIcon.Visible = true;
                 notifyIcon.BalloonTipText = "Lync history minimized";
-                notifyIcon.ShowBalloonTip(BALOON_POPUP_TIMEOUT);
+                notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
                 this.ShowInTaskbar = false;
             }
         }
