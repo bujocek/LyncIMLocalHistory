@@ -1,4 +1,4 @@
-LyncIMLocalHistory ver. 1.0
+LyncIMLocalHistory ver. 1.2
 ===========================
 Simple IM conversation tracker for people who want to keep the conversation 
 history and can not use lync ( now Skype for business ) for it directly (i.e. it may be disabled by corp).
