@@ -12,7 +12,7 @@ namespace LyncIMLocalHistory
     class Program : System.Windows.Forms.Form
     {
         public string welcomeText =
-@"LyncIMLocalHistory ver. 1.1
+@"LyncIMLocalHistory ver. 1.2
 =============================
 Simple IM conversation tracker for people who want to keep the conversation 
 history and can not use lync for it directly (i.e. it may be disabled by corp).
