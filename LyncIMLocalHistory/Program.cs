@@ -3,9 +3,10 @@ using Microsoft.Lync.Model.Conversation;
 using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Diagnostics;
 
 namespace LyncIMLocalHistory
 {
@@ -52,7 +53,7 @@ gbl@bujok.cz";
         static string programFolder = @"\LyncIMHistory";
 
         static Program ProgramRef;
-        static Timer keepAliveTimer = new Timer();
+        static System.Windows.Forms.Timer keepAliveTimer = new System.Windows.Forms.Timer();
         private NotifyIcon notifyIcon;
         private System.ComponentModel.IContainer components;
 
@@ -61,6 +62,9 @@ gbl@bujok.cz";
         private const int BALLOON_POPUP_TIMEOUT_MS = 3000;
         private const int KEEP_ALIVE_INTERVAL_MS = 5000;
         private const int CONNECT_RETRY_WAIT_TIME_MS = 5000;
+        private ContextMenuStrip notifyIconContextMenu;
+        private ToolStripMenuItem MenuItemOpenLogDir;
+        private ToolStripMenuItem MenuItemQuit;
         private const int CONNECT_RETRY_MAX = -1; // -1 to retry indefinitely
 
 
@@ -128,6 +132,15 @@ gbl@bujok.cz";
 
         async void connect()
         {
+            // If already running, alert user and quit
+            if (Process.GetProcessesByName("LyncIMLocalHistory").Length > 1)
+            {
+                consoleWriteLine(String.Format("Lync IM History already running, quitting..."));
+                Thread.Sleep(2000);
+                this.Close();
+                return;
+            }
+
             lyncClient = null;
             bool tryAgain = false;
             int attempts = 0;
@@ -283,6 +296,10 @@ gbl@bujok.cz";
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.consoleBox = new System.Windows.Forms.TextBox();
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
+            this.notifyIconContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.MenuItemOpenLogDir = new System.Windows.Forms.ToolStripMenuItem();
+            this.MenuItemQuit = new System.Windows.Forms.ToolStripMenuItem();
+            this.notifyIconContextMenu.SuspendLayout();
             this.SuspendLayout();
             // 
             // textBox1
@@ -313,6 +330,37 @@ gbl@bujok.cz";
             this.consoleBox.TabIndex = 1;
             this.consoleBox.TabStop = false;
             // 
+            // notifyIcon
+            // 
+            this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
+            this.notifyIcon.BalloonTipText = "Lync history minimized";
+            this.notifyIcon.BalloonTipTitle = "Lync history";
+            this.notifyIcon.MouseDoubleClick += notifyIcon_MouseDoubleClick;
+            this.notifyIcon.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
+            this.notifyIcon.Text = "Lync history recorder";
+            // 
+            // notifyIconContextMenu
+            // 
+            this.notifyIconContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.MenuItemOpenLogDir,
+            this.MenuItemQuit});
+            this.notifyIconContextMenu.Name = "notifyIconContextMenu";
+            this.notifyIconContextMenu.Size = new System.Drawing.Size(178, 70);
+            // 
+            // MenuItemOpenLogDir
+            // 
+            this.MenuItemOpenLogDir.Name = "MenuItemOpenLogDir";
+            this.MenuItemOpenLogDir.Size = new System.Drawing.Size(177, 22);
+            this.MenuItemOpenLogDir.Text = "Open Log Directory";
+            this.MenuItemOpenLogDir.Click += new System.EventHandler(this.MenuItemOpenLogDir_Click);
+            // 
+            // MenuItemQuit
+            // 
+            this.MenuItemQuit.Name = "MenuItemQuit";
+            this.MenuItemQuit.Size = new System.Drawing.Size(177, 22);
+            this.MenuItemQuit.Text = "Quit";
+            this.MenuItemQuit.Click += new System.EventHandler(this.MenuItemQuit_Click);
+            // 
             // Program
             // 
             this.ClientSize = new System.Drawing.Size(471, 384);
@@ -321,16 +369,7 @@ gbl@bujok.cz";
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Program";
             this.Text = "Lync IM Local History";
-            // 
-            // notifyIcon
-            // 
-            this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info; //Shows the info icon so the user doesn't thing there is an error.
-            this.notifyIcon.BalloonTipText = "Lync history minimized";
-            this.notifyIcon.BalloonTipTitle = "Lync history";
-            this.notifyIcon.Icon = this.Icon; //The tray icon to use
-            this.notifyIcon.Text = "Lync history recorder";
-            this.notifyIcon.DoubleClick += notifyIcon_MouseDoubleClick;
-
+            this.notifyIconContextMenu.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -344,6 +383,8 @@ gbl@bujok.cz";
                 notifyIcon.BalloonTipText = "Lync history minimized";
                 notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
                 this.ShowInTaskbar = false;
+
+                notifyIcon.ContextMenuStrip = notifyIconContextMenu;
             }
         }
 
@@ -352,6 +393,16 @@ gbl@bujok.cz";
             this.WindowState = FormWindowState.Normal;
             this.ShowInTaskbar = true;
             notifyIcon.Visible = false;
+        }
+
+        private void MenuItemOpenLogDir_Click(object sender, EventArgs e)
+        {
+            Process.Start(mydocpath + programFolder);
+        }
+        
+        private void MenuItemQuit_Click(object sender, EventArgs e)
+        {
+            this.Close();
         }
     }
 
