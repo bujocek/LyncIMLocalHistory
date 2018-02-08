@@ -3,9 +3,10 @@ using Microsoft.Lync.Model.Conversation;
 using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Diagnostics;
 
 namespace LyncIMLocalHistory
 {
@@ -52,7 +53,7 @@ gbl@bujok.cz";
         static string programFolder = @"\LyncIMHistory";
 
         static Program ProgramRef;
-        static Timer keepAliveTimer = new Timer();
+        static System.Windows.Forms.Timer keepAliveTimer = new System.Windows.Forms.Timer();
         private NotifyIcon notifyIcon;
         private System.ComponentModel.IContainer components;
 
@@ -128,6 +129,15 @@ gbl@bujok.cz";
 
         async void connect()
         {
+            // If already running, alert user and quit
+            if (Process.GetProcessesByName("LyncIMLocalHistory").Length > 1)
+            {
+                consoleWriteLine(String.Format("Lync IM History already running, quitting..."));
+                Thread.Sleep(2000);
+                this.Close();
+                return;
+            }
+
             lyncClient = null;
             bool tryAgain = false;
             int attempts = 0;
