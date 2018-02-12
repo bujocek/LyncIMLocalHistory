@@ -3,9 +3,10 @@ using Microsoft.Lync.Model.Conversation;
 using System;
 using System.IO;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Windows.Forms;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Diagnostics;
 
 namespace LyncIMLocalHistory
 {
@@ -52,15 +53,24 @@ gbl@bujok.cz";
         static string programFolder = @"\LyncIMHistory";
 
         static Program ProgramRef;
-        static Timer keepAliveTimer = new Timer();
+        static System.Windows.Forms.Timer keepAliveTimer = new System.Windows.Forms.Timer();
         private NotifyIcon notifyIcon;
         private System.ComponentModel.IContainer components;
+
+        // Settings
+        bool startMinimized = false;
+        bool showBalloons = false;
 
         static LyncClient lyncClient;
 
         private const int BALLOON_POPUP_TIMEOUT_MS = 3000;
         private const int KEEP_ALIVE_INTERVAL_MS = 5000;
         private const int CONNECT_RETRY_WAIT_TIME_MS = 5000;
+        private ContextMenuStrip notifyIconContextMenu;
+        private ToolStripMenuItem MenuItemOpenLogDir;
+        private ToolStripMenuItem MenuItemQuit;
+        private CheckBox cbStartMinimized;
+        private CheckBox cbShowBalloons;
         private const int CONNECT_RETRY_MAX = -1; // -1 to retry indefinitely
 
 
@@ -112,8 +122,11 @@ gbl@bujok.cz";
             //read previous conversation ID
             try
             {
-                StreamReader idFile = new StreamReader(appDataPath + programFolder + @"\nextConvId.txt");
-                nextConvId = int.Parse(idFile.ReadLine());
+                using (StreamReader idFile = new StreamReader(appDataPath + programFolder + @"\nextConvId.txt"))
+                {
+                    nextConvId = int.Parse(idFile.ReadLine());
+                }
+
                 consoleWriteLine("Last conversation number found: " + nextConvId);
             }
             catch (Exception _ex)
@@ -122,12 +135,50 @@ gbl@bujok.cz";
                 consoleWriteLine("No previous conversation number found. Using default.");
             }
 
+            //read settings
+            try
+            {
+                using (StreamReader settingsFile = new StreamReader(appDataPath + programFolder + @"\settings.txt"))
+                {
+                    settingsFile.ReadLine();
+                    this.startMinimized = bool.Parse(settingsFile.ReadLine());
+                    settingsFile.ReadLine();
+                    this.showBalloons = bool.Parse(settingsFile.ReadLine());
+                }
+
+                consoleWriteLine("Settings found and applied");
+            }
+            catch (Exception _ex)
+            {
+                consoleWriteLine("No settings found. Using default.");
+
+                startMinimized = false;
+                showBalloons = true;
+
+                saveSettings();
+            }
+
+            this.cbStartMinimized.Checked = startMinimized;
+            this.cbShowBalloons.Checked = showBalloons;
+
+            if (startMinimized)
+                this.WindowState = FormWindowState.Minimized;
+
             keepAliveTimer.Tick += new EventHandler(KeepAliveTimerProcessor);
             keepAliveTimer.Interval = KEEP_ALIVE_INTERVAL_MS;
         }
 
         async void connect()
         {
+            // If already running, alert user and quit
+            if (Process.GetProcessesByName("LyncIMLocalHistory").Length > 1)
+            {
+                consoleWriteLine(String.Format("Lync IM History already running, quitting..."));
+                Thread.Sleep(2000);
+                this.Close();
+                return;
+            }
+
             lyncClient = null;
             bool tryAgain = false;
             int attempts = 0;
@@ -190,7 +241,7 @@ gbl@bujok.cz";
                     outfile.Close();
                 }
             }
-            catch(Exception _ex)
+            catch (Exception _ex)
             {
                 //ignore
             }
@@ -198,7 +249,7 @@ gbl@bujok.cz";
             e.Conversation.ParticipantRemoved += Conversation_ParticipantRemoved;
             String s = String.Format("Conversation #{0} started.", newcontainer.m_convId);
             consoleWriteLine(s);
-            if (WindowState == FormWindowState.Minimized)
+            if (WindowState == FormWindowState.Minimized && showBalloons)
             {
                 this.notifyIcon.BalloonTipText = s;
                 this.notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
@@ -230,7 +281,7 @@ gbl@bujok.cz";
             DateTime now = DateTime.Now;
             String convlog = "[" + now + "] (Conv. #" + container.m_convId + ") <" + imm.Participant.Contact.GetContactInformation(ContactInformationType.DisplayName) + ">";
             convlog += Environment.NewLine + args.Text;
-            using (StreamWriter outfile = new StreamWriter(mydocpath + programFolder +@"\AllLyncIMHistory.txt", true))
+            using (StreamWriter outfile = new StreamWriter(mydocpath + programFolder + @"\AllLyncIMHistory.txt", true))
             {
                 outfile.WriteLine(convlog);
                 outfile.Close();
@@ -268,7 +319,7 @@ gbl@bujok.cz";
                 ActiveConversations.Remove(e.Conversation);
 
                 String s = String.Format("Conversation #{0} ended.", container.m_convId);
-                if (WindowState == FormWindowState.Minimized)
+                if (WindowState == FormWindowState.Minimized && showBalloons)
                 {
                     this.notifyIcon.BalloonTipText = s;
                     this.notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
@@ -283,54 +334,105 @@ gbl@bujok.cz";
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.consoleBox = new System.Windows.Forms.TextBox();
             this.notifyIcon = new System.Windows.Forms.NotifyIcon(this.components);
+            this.notifyIconContextMenu = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.MenuItemOpenLogDir = new System.Windows.Forms.ToolStripMenuItem();
+            this.MenuItemQuit = new System.Windows.Forms.ToolStripMenuItem();
+            this.cbStartMinimized = new System.Windows.Forms.CheckBox();
+            this.cbShowBalloons = new System.Windows.Forms.CheckBox();
+            this.notifyIconContextMenu.SuspendLayout();
             this.SuspendLayout();
             // 
             // textBox1
             // 
-            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
             this.textBox1.Location = new System.Drawing.Point(12, 12);
             this.textBox1.MinimumSize = new System.Drawing.Size(100, 50);
             this.textBox1.Multiline = true;
             this.textBox1.Name = "textBox1";
             this.textBox1.ReadOnly = true;
-            this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
             this.textBox1.Size = new System.Drawing.Size(447, 202);
             this.textBox1.TabIndex = 0;
             this.textBox1.TabStop = false;
             // 
             // consoleBox
             // 
-            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
+            this.consoleBox.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
+            | System.Windows.Forms.AnchorStyles.Left)
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.consoleBox.Location = new System.Drawing.Point(12, 220);
+            this.consoleBox.Location = new System.Drawing.Point(12, 243);
             this.consoleBox.Multiline = true;
             this.consoleBox.Name = "consoleBox";
             this.consoleBox.ReadOnly = true;
             this.consoleBox.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.consoleBox.Size = new System.Drawing.Size(447, 152);
+            this.consoleBox.Size = new System.Drawing.Size(447, 180);
             this.consoleBox.TabIndex = 1;
             this.consoleBox.TabStop = false;
             // 
+            // notifyIcon
+            // 
+            this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info;
+            this.notifyIcon.BalloonTipText = "Lync history minimized";
+            this.notifyIcon.BalloonTipTitle = "Lync history";
+            this.notifyIcon.Icon = ((System.Drawing.Icon)(resources.GetObject("notifyIcon.Icon")));
+            this.notifyIcon.Text = "Lync history recorder";
+            this.notifyIcon.MouseDoubleClick += new System.Windows.Forms.MouseEventHandler(this.notifyIcon_MouseDoubleClick);
+            // 
+            // notifyIconContextMenu
+            // 
+            this.notifyIconContextMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.MenuItemOpenLogDir,
+            this.MenuItemQuit});
+            this.notifyIconContextMenu.Name = "notifyIconContextMenu";
+            this.notifyIconContextMenu.Size = new System.Drawing.Size(178, 48);
+            // 
+            // MenuItemOpenLogDir
+            // 
+            this.MenuItemOpenLogDir.Name = "MenuItemOpenLogDir";
+            this.MenuItemOpenLogDir.Size = new System.Drawing.Size(177, 22);
+            this.MenuItemOpenLogDir.Text = "Open Log Directory";
+            this.MenuItemOpenLogDir.Click += new System.EventHandler(this.MenuItemOpenLogDir_Click);
+            // 
+            // MenuItemQuit
+            // 
+            this.MenuItemQuit.Name = "MenuItemQuit";
+            this.MenuItemQuit.Size = new System.Drawing.Size(177, 22);
+            this.MenuItemQuit.Text = "Quit";
+            this.MenuItemQuit.Click += new System.EventHandler(this.MenuItemQuit_Click);
+            // 
+            // cbStartMinimized
+            // 
+            this.cbStartMinimized.AutoSize = true;
+            this.cbStartMinimized.Location = new System.Drawing.Point(12, 220);
+            this.cbStartMinimized.Name = "cbStartMinimized";
+            this.cbStartMinimized.Size = new System.Drawing.Size(96, 17);
+            this.cbStartMinimized.TabIndex = 2;
+            this.cbStartMinimized.Text = "Start minimized";
+            this.cbStartMinimized.UseVisualStyleBackColor = true;
+            this.cbStartMinimized.Click += new System.EventHandler(this.CheckBox_Click);
+            // 
+            // cbShowBalloons
+            // 
+            this.cbShowBalloons.AutoSize = true;
+            this.cbShowBalloons.Location = new System.Drawing.Point(114, 220);
+            this.cbShowBalloons.Name = "cbShowBalloons";
+            this.cbShowBalloons.Size = new System.Drawing.Size(109, 17);
+            this.cbShowBalloons.TabIndex = 3;
+            this.cbShowBalloons.Text = "Show balloon tips";
+            this.cbShowBalloons.UseVisualStyleBackColor = true;
+            this.cbShowBalloons.Click += new System.EventHandler(this.CheckBox_Click);
+            // 
             // Program
             // 
-            this.ClientSize = new System.Drawing.Size(471, 384);
+            this.ClientSize = new System.Drawing.Size(471, 435);
+            this.Controls.Add(this.cbShowBalloons);
+            this.Controls.Add(this.cbStartMinimized);
             this.Controls.Add(this.consoleBox);
             this.Controls.Add(this.textBox1);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "Program";
             this.Text = "Lync IM Local History";
-            // 
-            // notifyIcon
-            // 
-            this.notifyIcon.BalloonTipIcon = System.Windows.Forms.ToolTipIcon.Info; //Shows the info icon so the user doesn't thing there is an error.
-            this.notifyIcon.BalloonTipText = "Lync history minimized";
-            this.notifyIcon.BalloonTipTitle = "Lync history";
-            this.notifyIcon.Icon = this.Icon; //The tray icon to use
-            this.notifyIcon.Text = "Lync history recorder";
-            this.notifyIcon.DoubleClick += notifyIcon_MouseDoubleClick;
-
+            this.notifyIconContextMenu.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -342,16 +444,48 @@ gbl@bujok.cz";
             {
                 notifyIcon.Visible = true;
                 notifyIcon.BalloonTipText = "Lync history minimized";
-                notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
+                if (showBalloons)
+                    notifyIcon.ShowBalloonTip(BALLOON_POPUP_TIMEOUT_MS);
                 this.ShowInTaskbar = false;
+
+                notifyIcon.ContextMenuStrip = notifyIconContextMenu;
             }
         }
 
-        private void notifyIcon_MouseDoubleClick(object sender, EventArgs e)
+        private void notifyIcon_MouseDoubleClick(object sender, MouseEventArgs e)
         {
             this.WindowState = FormWindowState.Normal;
             this.ShowInTaskbar = true;
             notifyIcon.Visible = false;
+        }
+
+        private void MenuItemOpenLogDir_Click(object sender, EventArgs e)
+        {
+            Process.Start(mydocpath + programFolder);
+        }
+
+        private void MenuItemQuit_Click(object sender, EventArgs e)
+        {
+            this.Close();
+        }
+
+        private void saveSettings()
+        {
+            using (StreamWriter outfile = new StreamWriter(appDataPath + programFolder + @"\settings.txt", false))
+            {
+                outfile.WriteLine("Start minimized:");
+                outfile.WriteLine(startMinimized);
+                outfile.WriteLine("Show balloons:");
+                outfile.WriteLine(showBalloons);
+                outfile.Close();
+            }
+        }
+
+        private void CheckBox_Click(object sender, EventArgs e)
+        {
+            startMinimized = cbStartMinimized.Checked;
+            showBalloons = cbShowBalloons.Checked;
+            saveSettings();
         }
     }
 
